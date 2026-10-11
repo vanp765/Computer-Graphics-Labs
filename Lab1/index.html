@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Лабораторная 1: Цветовые модели</title>
+    <style>
+        /* Базовые настройки для правильного отображения размеров */
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f9; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; margin-top: 0; }
+        
+        /* Блок с палитрой и большим квадратом цвета */
+        .color-box-container { display: flex; align-items: center; justify-content: space-around; margin-bottom: 30px; padding: 20px; background: #eef2f5; border-radius: 12px; }
+        .picker-wrapper { text-align: center; font-size: 18px; }
+        /* Увеличенный квадрат отображения цвета */
+        .color-preview { width: 160px; height: 160px; border-radius: 12px; border: 3px solid #ccc; background-color: #ff0000; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); }
+        input[type="color"] { width: 80px; height: 80px; border: none; cursor: pointer; margin-top: 10px; background: none; }
+
+        /* Сетка для трех моделей */
+        .models-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+        .model-card { background: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #ddd; }
+        .model-card h3 { margin-top: 0; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        /* Выравнивание ползунков и цифр */
+        .input-group { display: flex; align-items: center; margin-bottom: 15px; }
+        .input-group label { width: 20px; font-weight: bold; color: #555; flex-shrink: 0; }
+        .input-group input[type="range"] { flex-grow: 1; width: 100%; margin: 0 10px; cursor: pointer; }
+        .input-group input[type="number"] { width: 65px; padding: 6px; border: 1px solid #ccc; border-radius: 6px; flex-shrink: 0; text-align: center; }
+
+	/* Делаем ползунок H (Hue) красивым спектром */
+        #h-slider {
+            -webkit-appearance: none; /* Отключаем стандартный серый вид */
+            background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+            height: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        
+        /* Настраиваем кружок (бегунок) для красивого ползунка */
+        #h-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border: 2px solid #333;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Конвертер цветовых моделей</h1>
+    
+    <div class="color-box-container">
+        <div class="picker-wrapper">
+            <label><strong>Выбрать цвет:</strong></label><br>
+            <input type="color" id="colorPicker" value="#ff0000">
+        </div>
+        <div class="color-preview" id="colorPreview"></div>
+    </div>
+
+    <div class="models-grid">
+        <!-- RGB -->
+        <div class="model-card" id="rgb-model">
+            <h3>RGB</h3>
+            <div class="input-group"><label>R</label><input type="range" id="r-slider" min="0" max="255" value="255"><input type="number" id="r-num" min="0" max="255" value="255"></div>
+            <div class="input-group"><label>G</label><input type="range" id="g-slider" min="0" max="255" value="0"><input type="number" id="g-num" min="0" max="255" value="0"></div>
+            <div class="input-group"><label>B</label><input type="range" id="b-slider" min="0" max="255" value="0"><input type="number" id="b-num" min="0" max="255" value="0"></div>
+        </div>
+
+        <!-- CMYK -->
+        <div class="model-card" id="cmyk-model">
+            <h3>CMYK</h3>
+            <div class="input-group"><label>C</label><input type="range" id="c-slider" min="0" max="100" value="0"><input type="number" id="c-num" min="0" max="100" value="0"></div>
+            <div class="input-group"><label>M</label><input type="range" id="m-slider" min="0" max="100" value="100"><input type="number" id="m-num" min="0" max="100" value="100"></div>
+            <div class="input-group"><label>Y</label><input type="range" id="y-slider" min="0" max="100" value="100"><input type="number" id="y-num" min="0" max="100" value="100"></div>
+            <div class="input-group"><label>K</label><input type="range" id="k-slider" min="0" max="100" value="0"><input type="number" id="k-num" min="0" max="100" value="0"></div>
+        </div>
+
+        <!-- HSV -->
+        <div class="model-card" id="hsv-model">
+            <h3>HSV</h3>
+            <div class="input-group"><label>H</label><input type="range" id="h-slider" min="0" max="360" value="0"><input type="number" id="h-num" min="0" max="360" value="0"></div>
+            <div class="input-group"><label>S</label><input type="range" id="s-slider" min="0" max="100" value="100"><input type="number" id="s-num" min="0" max="100" value="100"></div>
+            <div class="input-group"><label>V</label><input type="range" id="v-slider" min="0" max="100" value="100"><input type="number" id="v-num" min="0" max="100" value="100"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. ФУНКЦИИ МАТЕМАТИЧЕСКОЙ КОНВЕРТАЦИИ ---
+
+    function rgbToCmyk(r, g, b) {
+        // Формула строго из лекций:
+        // K = min(1-R/255, 1-G/255, 1-B/255)
+        let k = Math.min(1 - r/255, 1 - g/255, 1 - b/255);
+        
+        // Если цвет полностью черный, k=1. Чтобы не было деления на ноль:
+        if (k === 1) return { c: 0, m: 0, y: 0, k: 100 };
+        
+        // C=(1-R/255-K)/(1-K); M=(1-G/255-K)/(1-K); Y=(1-B/255-K)/(1-K)
+        let c = (1 - r/255 - k) / (1 - k);
+        let m = (1 - g/255 - k) / (1 - k);
+        let y = (1 - b/255 - k) / (1 - k);
+        
+        // Переводим доли (0...1) в проценты (0...100) для интерфейса
+        return { 
+            c: Math.round(c * 100), 
+            m: Math.round(m * 100), 
+            y: Math.round(y * 100), 
+            k: Math.round(k * 100) 
+        };
+    }
+
+    function cmykToRgb(c, m, y, k) {
+        // Переводим проценты с ползунков (0-100) обратно в доли (0-1)
+        c /= 100; m /= 100; y /= 100; k /= 100;
+        
+        // Формула строго из лекций:
+        // R=255(1-C)(1-K); G=255(1-M)(1-K); B=255(1-Y)(1-K);
+        let r = 255 * (1 - c) * (1 - k);
+        let g = 255 * (1 - m) * (1 - k);
+        let b = 255 * (1 - y) * (1 - k);
+        
+        return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+    }
+
+    function rgbToHsv(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        let max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h, s, v = max; // Яркость (V) - это просто максимальный канал
+        let d = max - min; // Разница между самым ярким и самым тусклым
+        
+        // Насыщенность (S)
+        s = max === 0 ? 0 : d / max;
+        
+        // Тон (H)
+        if (max === min) { 
+            h = 0; // Серый цвет, тон не имеет значения
+        } else {
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return { h: Math.round(h * 360), s: Math.round(s * 100), v: Math.round(v * 100) };
+    }
+
+    function hsvToRgb(h, s, v) {
+        h /= 360; s /= 100; v /= 100;
+        let r, g, b;
+        let i = Math.floor(h * 6); // Сектор на цветовом круге (0-5)
+        let f = h * 6 - i;
+        let p = v * (1 - s);
+        let q = v * (1 - f * s);
+        let t = v * (1 - (1 - f) * s);
+        
+        switch (i % 6) {
+            case 0: r = v, g = t, b = p; break;
+            case 1: r = q, g = v, b = p; break;
+            case 2: r = p, g = v, b = t; break;
+            case 3: r = p, g = q, b = v; break;
+            case 4: r = t, g = p, b = v; break;
+            case 5: r = v, g = p, b = q; break;
+        }
+        return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+    }
+
+    // Вспомогательные функции для палитры (HTML принимает цвета только в формате HEX: #ff0000)
+    function rgbToHex(r, g, b) {
+        return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+    }
+
+    function hexToRgb(hex) {
+        let bigint = parseInt(hex.slice(1), 16);
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+    }
+
+    // --- 2. ГЛАВНАЯ ФУНКЦИЯ ОБНОВЛЕНИЯ ИНТЕРФЕЙСА ---
+    // Мы используем RGB как "базу". Если мы меняем что-то, мы сначала переводим это в RGB,
+    // а потом из RGB обновляем все остальные ползунки.
+    function updateAllFromRGB(r, g, b, sourceModel) {
+        
+        // 1. Обновляем визуальный квадрат и системную палитру
+        let hex = rgbToHex(r, g, b);
+        document.getElementById('colorPreview').style.backgroundColor = hex;
+        // Чтобы палитра не "дергалась", если мы крутим саму палитру
+        if(sourceModel !== 'picker') document.getElementById('colorPicker').value = hex;
+
+        // 2. Обновляем RGB поля (если мы не двигаем ползунки самого RGB)
+        if (sourceModel !== 'rgb') {
+            document.getElementById('r-slider').value = r; document.getElementById('r-num').value = r;
+            document.getElementById('g-slider').value = g; document.getElementById('g-num').value = g;
+            document.getElementById('b-slider').value = b; document.getElementById('b-num').value = b;
+        }
+
+        // 3. Обновляем CMYK поля (если мы не двигаем ползунки самого CMYK)
+        if (sourceModel !== 'cmyk') {
+            let cmyk = rgbToCmyk(r, g, b);
+            document.getElementById('c-slider').value = cmyk.c; document.getElementById('c-num').value = cmyk.c;
+            document.getElementById('m-slider').value = cmyk.m; document.getElementById('m-num').value = cmyk.m;
+            document.getElementById('y-slider').value = cmyk.y; document.getElementById('y-num').value = cmyk.y;
+            document.getElementById('k-slider').value = cmyk.k; document.getElementById('k-num').value = cmyk.k;
+        }
+
+        // 4. Обновляем HSV поля (если мы не двигаем ползунки самого HSV)
+        if (sourceModel !== 'hsv') {
+            let hsv = rgbToHsv(r, g, b);
+            document.getElementById('h-slider').value = hsv.h; document.getElementById('h-num').value = hsv.h;
+            document.getElementById('s-slider').value = hsv.s; document.getElementById('s-num').value = hsv.s;
+            document.getElementById('v-slider').value = hsv.v; document.getElementById('v-num').value = hsv.v;
+        }
+    }
+
+    // --- 3. НАВЕШИВАНИЕ СОБЫТИЙ (СЛУШАТЕЛИ) ---
+
+    // Слушаем изменение цвета в стандартной палитре
+    document.getElementById('colorPicker').addEventListener('input', function(e) {
+        let rgb = hexToRgb(e.target.value);
+        updateAllFromRGB(rgb.r, rgb.g, rgb.b, 'picker'); // Говорим, что источник - picker
+    });
+
+    // Универсальная функция, чтобы не писать один и тот же код 10 раз.
+    // Принимает буквы (например, ['r', 'g', 'b']), имя модели ('rgb') и функцию конвертации в RGB
+    function attachModelEvents(modelPrefixes, modelName, calculateRgbFunc) {
+        modelPrefixes.forEach(prefix => {
+            let slider = document.getElementById(`${prefix}-slider`);
+            let num = document.getElementById(`${prefix}-num`);
+            
+            function onChange() {
+                // Если потянули ползунок - меняем цифру в поле. И наоборот.
+                if(this.type === 'range') num.value = this.value;
+                else slider.value = this.value;
+                
+                // Собираем текущие значения из всех полей этой модели (например, R, G, B)
+                let vals = modelPrefixes.map(p => {
+                    let val = parseInt(document.getElementById(`${p}-num`).value) || 0;
+                    return val;
+                });
+                
+                // Переводим текущую модель в базовый RGB и обновляем весь интерфейс
+                let rgb = calculateRgbFunc(...vals);
+                updateAllFromRGB(rgb.r, rgb.g, rgb.b, modelName);
+            }
+
+            // Слушаем и движение ползунка, и ввод с клавиатуры
+            slider.addEventListener('input', onChange);
+            num.addEventListener('input', onChange);
+        });
+    }
+
+    // Инициализируем слушатели для каждой карточки
+    // Для RGB функция перевода в RGB просто возвращает сами R, G, B
+    attachModelEvents(['r', 'g', 'b'], 'rgb', (r,g,b) => ({r,g,b}));
+    attachModelEvents(['c', 'm', 'y', 'k'], 'cmyk', (c,m,y,k) => cmykToRgb(c,m,y,k));
+    attachModelEvents(['h', 's', 'v'], 'hsv', (h,s,v) => hsvToRgb(h,s,v));
+
+    // При открытии страницы ставим красный цвет (R=255) по умолчанию
+    updateAllFromRGB(255, 0, 0, 'none');
+
+</script>
+</body>
+</html>
