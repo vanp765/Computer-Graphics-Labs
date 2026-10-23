@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Лабораторная 2: Обработка изображений</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        .controls { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 20px; padding: 15px; background: #eef2f5; border-radius: 8px; align-items: center;}
+        select, button, input[type="file"] { padding: 10px; font-size: 16px; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        .canvases { display: flex; gap: 20px; justify-content: space-around; flex-wrap: wrap; }
+        .canvas-wrapper { display: flex; flex-direction: column; align-items: center; }
+        canvas { max-width: 100%; border: 2px dashed #ccc; border-radius: 8px; min-width: 300px; min-height: 200px; background: #fafafa; }
+        .status { text-align: center; font-weight: bold; color: #d9534f; margin-top: 10px; min-height: 24px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Методы обработки изображений (Вариант 10)</h1>
+    
+    <div class="controls">
+        <input type="file" id="upload" accept="image/*">
+        <select id="method-select">
+            <optgroup label="Порядковые статистики (Нелинейные)">
+                <option value="median">Медианный фильтр (удаление шума)</option>
+                <option value="min">Минимальный фильтр (Эрозия/Утемнение)</option>
+                <option value="max">Максимальный фильтр (Дилатация/Осветление)</option>
+            </optgroup>
+            <optgroup label="Глобальная пороговая обработка">
+                <option value="mean">Метод Среднего (Простой)</option>
+                <option value="otsu">Метод Оцу (Оптимальный)</option>
+            </optgroup>
+        </select>
+        <button id="process-btn">Обработать изображение</button>
+    </div>
+
+    <div class="status" id="status-text"></div>
+
+    <div class="canvases">
+        <div class="canvas-wrapper">
+            <h3>Оригинал</h3>
+            <canvas id="canvas-original"></canvas>
+        </div>
+        <div class="canvas-wrapper">
+            <h3>Результат</h3>
+            <canvas id="canvas-result"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const upload = document.getElementById('upload');
+    const methodSelect = document.getElementById('method-select');
+    const processBtn = document.getElementById('process-btn');
+    const canvasOriginal = document.getElementById('canvas-original');
+    const canvasResult = document.getElementById('canvas-result');
+    const ctxOriginal = canvasOriginal.getContext('2d');
+    const ctxResult = canvasResult.getContext('2d');
+    const statusText = document.getElementById('status-text');
+
+    let originalImage = new Image();
+
+    // 1. Загрузка картинки и отрисовка на Canvas
+    upload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            originalImage.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    originalImage.onload = () => {
+        // Ограничиваем размер, чтобы алгоритмы (особенно медиана) не повесили браузер
+        const MAX_WIDTH = 600;
+        let width = originalImage.width;
+        let height = originalImage.height;
+
+        if (width > MAX_WIDTH) {
+            height = Math.round((MAX_WIDTH / width) * height);
+            width = MAX_WIDTH;
+        }
+
+        canvasOriginal.width = width;
+        canvasOriginal.height = height;
+        canvasResult.width = width;
+        canvasResult.height = height;
+
+        ctxOriginal.drawImage(originalImage, 0, 0, width, height);
+        // Очищаем результат
+        ctxResult.clearRect(0, 0, width, height);
+        statusText.innerText = "Изображение загружено. Выберите метод и нажмите 'Обработать'.";
+    };
+
+    // 2. Главная функция обработки по нажатию кнопки
+    processBtn.addEventListener('click', () => {
+        if (!originalImage.src) {
+            alert("Сначала загрузите изображение!");
+            return;
+        }
+
+        statusText.innerText = "Обработка... Пожалуйста, подождите.";
+        
+        // Даем браузеру секунду на обновление текста "Обработка...", используя setTimeout
+        setTimeout(() => {
+            const width = canvasOriginal.width;
+            const height = canvasOriginal.height;
+            const imageData = ctxOriginal.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            const resultImageData = ctxResult.createImageData(width, height);
+            const resData = resultImageData.data;
+
+            const method = methodSelect.value;
+
+            if (method === 'median' || method === 'min' || method === 'max') {
+                applyOrderStatistics(data, resData, width, height, method);
+            } else if (method === 'mean' || method === 'otsu') {
+                applyGlobalThreshold(data, resData, width, height, method);
+            }
+
+            ctxResult.putImageData(resultImageData, 0, 0);
+            statusText.innerText = "Обработка завершена!";
+        }, 50);
+    });
+
+    // --- АЛГОРИТМЫ 1: Порядковые статистики (окно 3х3) ---
+    function applyOrderStatistics(data, resData, width, height, type) {
+        // Пробегаем по каждому пикселю (кроме самой крайней рамки в 1 пиксель)
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                
+                // Для каждого канала цвета (R, G, B)
+                for (let c = 0; c < 3; c++) {
+                    let neighbors = [];
+                    
+                    // Собираем соседей 3х3
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            let idx = ((y + dy) * width + (x + dx)) * 4 + c;
+                            neighbors.push(data[idx]);
+                        }
+                    }
+                    
+                    // СОРТИРОВКА (Самое главное в порядковых статистиках)
+                    neighbors.sort((a, b) => a - b);
+                    
+                    let targetIdx = (y * width + x) * 4 + c;
+                    
+                    if (type === 'median') resData[targetIdx] = neighbors[4]; // 5-й элемент (середина)
+                    else if (type === 'min') resData[targetIdx] = neighbors[0]; // 1-й элемент (самый темный)
+                    else if (type === 'max') resData[targetIdx] = neighbors[8]; // 9-й элемент (самый светлый)
+                }
+                // Альфа канал (прозрачность) оставляем 100%
+                resData[(y * width + x) * 4 + 3] = 255;
+            }
+        }
+    }
+
+    // --- АЛГОРИТМЫ 2: Глобальная пороговая обработка ---
+    function applyGlobalThreshold(data, resData, width, height, method) {
+        let grays = new Uint8Array(width * height);
+        let sum = 0;
+        
+        // 1. Переводим в оттенки серого (классическая формула светимости)
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i], g = data[i+1], b = data[i+2];
+            let gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+            grays[i/4] = gray;
+            sum += gray;
+        }
+
+        let threshold = 0;
+
+        // 2. Ищем порог (Threshold)
+        if (method === 'mean') {
+            // Метод Среднего: просто средняя яркость всех пикселей
+            threshold = Math.round(sum / grays.length);
+        } else if (method === 'otsu') {
+            // Метод Оцу (Otsu)
+            threshold = getOtsuThreshold(grays);
+        }
+
+        statusText.innerText += ` (Вычисленный порог: ${threshold})`;
+
+        // 3. Бинаризация (черно-белое) по найденному порогу
+        for (let i = 0; i < grays.length; i++) {
+            let val = grays[i] >= threshold ? 255 : 0; // Если светлее порога - белый, иначе черный
+            let idx = i * 4;
+            resData[idx] = val;     // R
+            resData[idx+1] = val;   // G
+            resData[idx+2] = val;   // B
+            resData[idx+3] = 255;   // Альфа
+        }
+    }
+
+    // Вспомогательная математика для метода Отсу
+    function getOtsuThreshold(grays) {
+        let histogram = new Array(256).fill(0);
+        for (let i = 0; i < grays.length; i++) histogram[grays[i]]++;
+
+        let total = grays.length;
+        let sumTotal = 0;
+        for (let i = 0; i < 256; i++) sumTotal += i * histogram[i];
+
+        let sumB = 0, wB = 0, wF = 0;
+        let varMax = 0, threshold = 0;
+
+        for (let t = 0; t < 256; t++) {
+            wB += histogram[t];               // Вес фона
+            if (wB === 0) continue;
+            wF = total - wB;                  // Вес объекта
+            if (wF === 0) break;
+
+            sumB += (t * histogram[t]);
+            
+            let mB = sumB / wB;               // Среднее фона
+            let mF = (sumTotal - sumB) / wF;  // Среднее объекта
+
+            // Межклассовая дисперсия
+            let varBetween = wB * wF * (mB - mF) * (mB - mF);
+
+            if (varBetween > varMax) {
+                varMax = varBetween;
+                threshold = t;
+            }
+        }
+        return threshold;
+    }
+</script>
+</body>
+</html>
