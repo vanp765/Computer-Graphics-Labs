@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Лабораторная 3: Базовые растровые алгоритмы</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f9; padding: 20px; display: flex; gap: 20px;}
+        .panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 320px; flex-shrink: 0; }
+        .canvas-container { flex-grow: 1; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center;}
+        canvas { background: #fafafa; border: 1px solid #ccc; cursor: crosshair; }
+        h2 { margin-top: 0; font-size: 1.2rem; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; margin-top: 10px; cursor: pointer; transition: 0.2s;}
+        button:hover { background: #0056b3; }
+        .coords { display: flex; gap: 10px; }
+        .result { margin-top: 20px; padding: 10px; background: #eef2f5; border-radius: 5px; font-family: monospace; font-size: 14px;}
+        hr { border: none; border-top: 1px solid #eee; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>Настройки</h2>
+    
+    <div class="form-group">
+        <label>Масштаб (размер пикселя):</label>
+        <input type="range" id="scale-slider" min="5" max="50" value="20">
+    </div>
+    
+    <div class="form-group">
+        <label>Алгоритм:</label>
+        <select id="algorithm-select">
+            <option value="step">Пошаговый алгоритм (y = kx+b)</option>
+            <option value="dda">Алгоритм ЦДА (DDA)</option>
+            <option value="bresenham_line">Алгоритм Брезенхема (Отрезок)</option>
+            <option value="bresenham_circle">Алгоритм Брезенхема (Окружность)</option>
+        </select>
+    </div>
+
+    <hr>
+    
+    <div id="line-inputs">
+        <div class="form-group">
+            <label>Начало отрезка (X0, Y0):</label>
+            <div class="coords">
+                <input type="number" id="x0" value="-10">
+                <input type="number" id="y0" value="-5">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Конец отрезка (X1, Y1):</label>
+            <div class="coords">
+                <input type="number" id="x1" value="12">
+                <input type="number" id="y1" value="8">
+            </div>
+        </div>
+    </div>
+
+    <div id="circle-inputs" style="display: none;">
+        <div class="form-group">
+            <label>Центр окружности (X, Y):</label>
+            <div class="coords">
+                <input type="number" id="cx" value="0">
+                <input type="number" id="cy" value="0">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Радиус (R):</label>
+            <input type="number" id="r" value="8">
+        </div>
+    </div>
+
+    <button id="draw-btn">Нарисовать</button>
+    <button id="clear-btn" style="background: #dc3545;">Очистить</button>
+
+    <div class="result" id="time-output">Время выполнения:<br>0.0000 мс</div>
+</div>
+
+<div class="canvas-container">
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <p style="color: #666; font-size: 12px; margin-top: 10px;">* Целочисленные координаты привязаны к центрам ячеек дискретной сетки.</p>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Элементы интерфейса
+    const scaleSlider = document.getElementById('scale-slider');
+    const algoSelect = document.getElementById('algorithm-select');
+    const lineInputs = document.getElementById('line-inputs');
+    const circleInputs = document.getElementById('circle-inputs');
+    const timeOutput = document.getElementById('time-output');
+    
+    let cellSize = parseInt(scaleSlider.value); // Размер одной клеточки
+
+    // Переключение инпутов в зависимости от алгоритма
+    algoSelect.addEventListener('change', () => {
+        if(algoSelect.value === 'bresenham_circle') {
+            lineInputs.style.display = 'none';
+            circleInputs.style.display = 'block';
+        } else {
+            lineInputs.style.display = 'block';
+            circleInputs.style.display = 'none';
+        }
+    });
+
+    scaleSlider.addEventListener('input', () => {
+        cellSize = parseInt(scaleSlider.value);
+        redraw();
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGrid();
+        timeOutput.innerHTML = "Время выполнения:<br>0.0000 мс";
+    });
+
+    // Массив для хранения нарисованных пикселей
+    let drawnPixels = [];
+
+    // --- ОТРИСОВКА СЕТКИ И ОСЕЙ ---
+    function drawGrid() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        let cx = canvas.width / 2;
+        let cy = canvas.height / 2;
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.font = '10px Arial';
+        ctx.fillStyle = '#999';
+
+        // Вертикальные линии сетки и цифры на оси X
+        for (let x = 0; x < cx; x += cellSize) {
+            ctx.beginPath(); ctx.moveTo(cx + x, 0); ctx.lineTo(cx + x, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx - x, 0); ctx.lineTo(cx - x, canvas.height); ctx.stroke();
+            if(x !== 0 && cellSize >= 15) {
+                ctx.fillText(x/cellSize, cx + x - 3, cy + 12);
+                ctx.fillText(-x/cellSize, cx - x - 5, cy + 12);
+            }
+        }
+        
+        // Горизонтальные линии сетки и цифры на оси Y
+        for (let y = 0; y < cy; y += cellSize) {
+            ctx.beginPath(); ctx.moveTo(0, cy + y); ctx.lineTo(canvas.width, cy + y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, cy - y); ctx.lineTo(canvas.width, cy - y); ctx.stroke();
+            if(y !== 0 && cellSize >= 15) {
+                ctx.fillText(-y/cellSize, cx + 5, cy + y + 3);
+                ctx.fillText(y/cellSize, cx + 5, cy - y + 3);
+            }
+        }
+
+        // Оси координат
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#333';
+        ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke(); // X
+        ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke(); // Y
+        
+        ctx.fillStyle = '#333';
+        ctx.fillText('0', cx + 5, cy + 12);
+        ctx.fillText('X', canvas.width - 15, cy - 10);
+        ctx.fillText('Y', cx + 10, 15);
+    }
+
+    // --- ПЕРЕВОД КООРДИНАТ И ЗАКРАСКА ПИКСЕЛЯ ---
+    function putPixel(x, y, color = '#ff0000') {
+        let cx = Math.floor(canvas.width / 2);
+        let cy = Math.floor(canvas.height / 2);
+        
+        // Центр дискретной клетки
+        let px = cx + x * cellSize;
+        let py = cy - y * cellSize; // Y инвертирован (в математике вверх, на экране вниз)
+
+        ctx.fillStyle = color;
+        // Закрашиваем ровно клеточку (минус 1px чтобы сетку не перекрывать)
+        ctx.fillRect(px - cellSize/2 + 1, py - cellSize/2 + 1, cellSize - 2, cellSize - 2);
+    }
+
+    function redraw() {
+        drawGrid();
+        // 1. Рисуем закрашенные пиксели
+        drawnPixels.forEach(p => putPixel(p.x, p.y, p.color));
+        
+        // 2. Рисуем идеальную математическую линию поверх пикселей
+        let algo = algoSelect.value;
+        let cx = Math.floor(canvas.width / 2);
+        let cy = Math.floor(canvas.height / 2);
+        
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'; // Полупрозрачный черный
+        ctx.lineWidth = 2;
+
+        if (algo === 'bresenham_circle') {
+            let cx_c = parseInt(document.getElementById('cx').value);
+            let cy_c = parseInt(document.getElementById('cy').value);
+            let r = parseInt(document.getElementById('r').value);
+            // Идеальный круг
+            ctx.arc(cx + cx_c * cellSize, cy - cy_c * cellSize, r * cellSize, 0, 2 * Math.PI);
+        } else {
+            let x0 = parseInt(document.getElementById('x0').value);
+            let y0 = parseInt(document.getElementById('y0').value);
+            let x1 = parseInt(document.getElementById('x1').value);
+            let y1 = parseInt(document.getElementById('y1').value);
+            // Идеальная прямая
+            ctx.moveTo(cx + x0 * cellSize, cy - y0 * cellSize);
+            ctx.lineTo(cx + x1 * cellSize, cy - y1 * cellSize);
+        }
+        ctx.stroke();
+    }
+
+
+    // --- 1. ПОШАГОВЫЙ АЛГОРИТМ (y = kx + b) ---
+    function stepByStep(x0, y0, x1, y1, record = true) {
+        if(x0 === x1 && y0 === y1) {
+            if(record) drawnPixels.push({x: x0, y: y0, color: 'blue'});
+            return;
+        }
+        
+        let dx = x1 - x0;
+        let dy = y1 - y0;
+        
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            // Идем по X
+            let steps = Math.abs(dx);
+            let k = dy / dx;
+            let b = y0 - k * x0;
+            let startX = dx > 0 ? x0 : x1;
+            let endX = dx > 0 ? x1 : x0;
+            
+            for (let x = startX; x <= endX; x++) {
+                let y = Math.round(k * x + b);
+                if(record) drawnPixels.push({x: x, y: y, color: '#007bff'});
+            }
+        } else {
+            // Идем по Y (чтобы не было дырок)
+            let steps = Math.abs(dy);
+            let k = dx / dy;
+            let b = x0 - k * y0;
+            let startY = dy > 0 ? y0 : y1;
+            let endY = dy > 0 ? y1 : y0;
+            
+            for (let y = startY; y <= endY; y++) {
+                let x = Math.round(k * y + b);
+                if(record) drawnPixels.push({x: x, y: y, color: '#007bff'});
+            }
+        }
+    }
+
+    // --- 2. АЛГОРИТМ ЦДА (DDA) ---
+    function dda(x0, y0, x1, y1, record = true) {
+        let dx = x1 - x0;
+        let dy = y1 - y0;
+        let steps = Math.max(Math.abs(dx), Math.abs(dy));
+        
+        let xInc = dx / steps;
+        let yInc = dy / steps;
+        
+        let x = x0;
+        let y = y0;
+        
+        for (let i = 0; i <= steps; i++) {
+            if(record) drawnPixels.push({x: Math.round(x), y: Math.round(y), color: '#28a745'});
+            x += xInc;
+            y += yInc;
+        }
+    }
+
+    // --- 3. АЛГОРИТМ БРЕЗЕНХЕМА (Отрезок) ---
+    function bresenhamLine(x0, y0, x1, y1, record = true) {
+        let dx = Math.abs(x1 - x0);
+        let dy = Math.abs(y1 - y0);
+        let sx = (x0 < x1) ? 1 : -1;
+        let sy = (y0 < y1) ? 1 : -1;
+        let err = dx - dy;
+
+        while (true) {
+            if(record) drawnPixels.push({x: x0, y: y0, color: '#dc3545'});
+            if (x0 === x1 && y0 === y1) break;
+            
+            let e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
+    // --- 4. АЛГОРИТМ БРЕЗЕНХЕМА (Окружность) ---
+    function bresenhamCircle(cx, cy, r, record = true) {
+        let x = 0;
+        let y = r;
+        let d = 3 - 2 * r;
+
+        // Рисует точки сразу в 8 октантах
+        function draw8Points(xc, yc, x, y) {
+            if(record) {
+                drawnPixels.push({x: xc+x, y: yc+y, color: '#ffc107'});
+                drawnPixels.push({x: xc-x, y: yc+y, color: '#ffc107'});
+                drawnPixels.push({x: xc+x, y: yc-y, color: '#ffc107'});
+                drawnPixels.push({x: xc-x, y: yc-y, color: '#ffc107'});
+                drawnPixels.push({x: xc+y, y: yc+x, color: '#ffc107'});
+                drawnPixels.push({x: xc-y, y: yc+x, color: '#ffc107'});
+                drawnPixels.push({x: xc+y, y: yc-x, color: '#ffc107'});
+                drawnPixels.push({x: xc-y, y: yc-x, color: '#ffc107'});
+            }
+        }
+
+        while (y >= x) {
+            draw8Points(cx, cy, x, y);
+            x++;
+            if (d > 0) {
+                y--;
+                d = d + 4 * (x - y) + 10;
+            } else {
+                d = d + 4 * x + 6;
+            }
+        }
+    }
+
+    // --- ОСНОВНАЯ ЛОГИКА И ЗАМЕР ВРЕМЕНИ ---
+    document.getElementById('draw-btn').addEventListener('click', () => {
+        let algo = algoSelect.value;
+        let x0 = parseInt(document.getElementById('x0').value);
+        let y0 = parseInt(document.getElementById('y0').value);
+        let x1 = parseInt(document.getElementById('x1').value);
+        let y1 = parseInt(document.getElementById('y1').value);
+        
+        let cx = parseInt(document.getElementById('cx').value);
+        let cy = parseInt(document.getElementById('cy').value);
+        let r = parseInt(document.getElementById('r').value);
+
+        drawnPixels = []; // Очищаем массив точек перед новым рисованием
+
+        // Для точного замера времени (1 миллисекунда = слишком быстро для 1 отрезка),
+        // поэтому мы прогоняем математику алгоритма 10 000 раз вхолостую
+        let iterations = 10000;
+        let t0 = performance.now();
+        
+        if (algo === 'step') {
+            for(let i=0; i<iterations; i++) stepByStep(x0, y0, x1, y1, false);
+            stepByStep(x0, y0, x1, y1, true); // Последний раз рисуем в массив
+        } 
+        else if (algo === 'dda') {
+            for(let i=0; i<iterations; i++) dda(x0, y0, x1, y1, false);
+            dda(x0, y0, x1, y1, true);
+        } 
+        else if (algo === 'bresenham_line') {
+            for(let i=0; i<iterations; i++) bresenhamLine(x0, y0, x1, y1, false);
+            bresenhamLine(x0, y0, x1, y1, true);
+        } 
+        else if (algo === 'bresenham_circle') {
+            for(let i=0; i<iterations; i++) bresenhamCircle(cx, cy, r, false);
+            bresenhamCircle(cx, cy, r, true);
+        }
+
+        let t1 = performance.now();
+        let totalTime = (t1 - t0) / iterations; // Истинное время на 1 отрисовку (в мс)
+
+        timeOutput.innerHTML = `Время выполнения (1 проход):<br><b>${totalTime.toFixed(6)} мс</b>`;
+        
+        redraw();
+    });
+
+    // Инициализация при загрузке
+    drawGrid();
+
+</script>
+</body>
+</html>
